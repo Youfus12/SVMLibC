@@ -1,0 +1,25 @@
+digraph {
+	rankdir=LR size=10
+	HQ [label="Headquarters
+(HQ_ID, Name, Address, Phone_Number)" color=lightblue shape=box style=filled]
+	Dep [label="Department
+(Department_ID, Name, Manager_Name, Phone_Number)" color=lightgreen shape=box style=filled]
+	Send [label="Sender
+(Sender_ID, Name, Address, Phone_Number, Email)" color=lightyellow shape=box style=filled]
+	Recv [label="Receiver
+(Receiver_ID, Name, Address, Phone_Number, Email)" color=lightyellow shape=box style=filled]
+	Order [label="Order
+(Order_ID, Order_Date, Delivery_Status, Total_Amount)" color=orange shape=box style=filled]
+	WH [label="Warehouse
+(Warehouse_ID, Name, Location, Capacity)" color=lightpink shape=box style=filled]
+	Agent [label="Delivery Agent
+(Agent_ID, Name, Phone_Number, Vehicle_Type, License_Number)" color=lightgray shape=box style=filled]
+	HQ -> Dep [label=Manages arrowhead=normal]
+	HQ -> WH [label=Oversees arrowhead=normal]
+	Dep -> Order [label=Supports arrowhead=normal]
+	Send -> Order [label=Places arrowhead=normal]
+	Recv -> Order [label=Receives arrowhead=normal]
+	Order -> WH [label="Processed by" arrowhead=normal]
+	WH -> Agent [label=Manages arrowhead=normal]
+	Agent -> Order [label=Delivers arrowhead=normal]
+}

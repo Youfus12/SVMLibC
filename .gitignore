@@ -52,6 +52,12 @@ Mkfile.old
 dkms.conf
 
 # my ignores
-build/
+build
 .vscode
-
+test.c
+test.cpp
+testSVM.c
+svm.h
+libsvm/
+libsvm
+.DS_Store
