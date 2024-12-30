@@ -30,3 +30,25 @@ typedef struct svm_model{
     double b        // bias term
 
 }svm_model;
+
+
+/*
+The decision function:
+f(x) = w·x + b
+*/
+double decision_function(svm_model *model, svm_node *x){
+    return dot_product(model->w,x) + model->b;
+}
+
+
+/*
+    svm_predict fonction:
+    will return : +1 if the decision fonction is >= 0 else -1
+*/
+
+double svm_predict(svm_model *model, svm_node *x){
+    double val = decision_function(model,x); // x is the one data point
+    
+    if(val >= 0.0) return 1.0;
+    else           return -1.0;
+}
