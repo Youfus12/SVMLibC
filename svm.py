@@ -1,45 +1,93 @@
 import numpy as np
-import matplotlib.pyplot as plt
-from matplotlib.animation import FuncAnimation
-from sklearn.datasets import make_classification
-from sklearn.svm import SVC
+import sklearn
 
-# Generate synthetic data for binary classification
-X, y = make_classification(n_samples=100, n_features=2, n_informative=2, n_redundant=0, random_state=42)
-y = 2 * y - 1  # Convert labels to -1 and 1
+class SVM:
 
-# SVM initialization
-svc = SVC(kernel='linear', C=1, max_iter=1, tol=1e-3)
+    def __init__(self, learning_rate=0.001, lambda_param=0.01, n_iters=1000):
+        self.lr = learning_rate
+        self.lambda_param = lambda_param
+        self.n_iters = n_iters
+        self.w = None
+        self.b = None
 
-# Prepare the figure
-fig, ax = plt.subplots(figsize=(8, 6))
-scatter = ax.scatter(X[:, 0], X[:, 1], c=y, cmap=plt.cm.Paired, edgecolors='k')
-line, = ax.plot([], [], 'k-', lw=2, label='Hyperplane')
-margin_up, = ax.plot([], [], 'k--', lw=1, label='Margin')
-margin_down, = ax.plot([], [], 'k--', lw=1)
-ax.legend()
-ax.set_xlim(X[:, 0].min() - 1, X[:, 0].max() + 1)
-ax.set_ylim(X[:, 1].min() - 1, X[:, 1].max() + 1)
-ax.set_title("SVM Hyperplane Optimization")
+    def fit(self, X, y):
+        n_samples, n_features = X.shape
 
-# Animation function
-def update(frame):
-    svc.max_iter = frame + 1
-    svc.fit(X, y)
-    coef = svc.coef_.ravel()
-    intercept = svc.intercept_
+        y_ = np.where(y <= 0, -1, 1)
 
-    # Calculate hyperplane and margins
-    x_vals = np.linspace(X[:, 0].min() - 1, X[:, 0].max() + 1, 100)
-    y_vals = -(coef[0] * x_vals + intercept) / coef[1]
-    margin1 = y_vals - 1 / coef[1]
-    margin2 = y_vals + 1 / coef[1]
+        # init weights
+        self.w = np.zeros(n_features)
+        self.b = 0
 
-    # Update plot
-    line.set_data(x_vals, y_vals)
-    margin_up.set_data(x_vals, margin1)
-    margin_down.set_data(x_vals, margin2)
+        for _ in range(self.n_iters):
+            for idx, x_i in enumerate(X):
+                condition = y_[idx] * (np.dot(x_i, self.w) - self.b) >= 1
+                if condition:
+                    self.w -= self.lr * (2 * self.lambda_param * self.w)
+                else:
+                    self.w -= self.lr * (2 * self.lambda_param * self.w - np.dot(x_i, y_[idx]))
+                    self.b -= self.lr * y_[idx]
 
-# Create animation
-ani = FuncAnimation(fig, update, frames=100, repeat=False)
-plt.show()
+
+    def predict(self, X):
+        approx = np.dot(X, self.w) - self.b
+        return np.sign(approx)
+
+
+# Testing
+if __name__ == "__main__":
+    # Imports
+    from sklearn.model_selection import train_test_split
+    from sklearn import datasets
+    import matplotlib.pyplot as plt
+
+    X, y = datasets.make_blobs(
+        n_samples=50, n_features=2, centers=2, cluster_std=1.05, random_state=40
+    )
+    y = np.where(y == 0, -1, 1)
+
+    X_train, X_test, y_train, y_test = train_test_split(
+        X, y, test_size=0.2, random_state=123
+    )
+
+    clf = SVM()
+    clf.fit(X_train, y_train)
+    predictions = clf.predict(X_test)
+
+    def accuracy(y_true, y_pred):
+        accuracy = np.sum(y_true == y_pred) / len(y_true)
+        return accuracy
+
+    print("SVM classification accuracy", accuracy(y_test, predictions))
+
+    def visualize_svm():
+        def get_hyperplane_value(x, w, b, offset):
+            return (-w[0] * x + b + offset) / w[1]
+
+        fig = plt.figure()
+        ax = fig.add_subplot(1, 1, 1)
+        plt.scatter(X[:, 0], X[:, 1], marker="o", c=y)
+
+        x0_1 = np.amin(X[:, 0])
+        x0_2 = np.amax(X[:, 0])
+
+        x1_1 = get_hyperplane_value(x0_1, clf.w, clf.b, 0)
+        x1_2 = get_hyperplane_value(x0_2, clf.w, clf.b, 0)
+
+        x1_1_m = get_hyperplane_value(x0_1, clf.w, clf.b, -1)
+        x1_2_m = get_hyperplane_value(x0_2, clf.w, clf.b, -1)
+
+        x1_1_p = get_hyperplane_value(x0_1, clf.w, clf.b, 1)
+        x1_2_p = get_hyperplane_value(x0_2, clf.w, clf.b, 1)
+
+        ax.plot([x0_1, x0_2], [x1_1, x1_2], "y--")
+        ax.plot([x0_1, x0_2], [x1_1_m, x1_2_m], "k")
+        ax.plot([x0_1, x0_2], [x1_1_p, x1_2_p], "k")
+
+        x1_min = np.amin(X[:, 1])
+        x1_max = np.amax(X[:, 1])
+        ax.set_ylim([x1_min - 3, x1_max + 3])
+
+        plt.show()
+
+    visualize_svm()
