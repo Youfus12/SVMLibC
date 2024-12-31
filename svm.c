@@ -133,20 +133,20 @@ void split_dataset(svm_problem *full_prob,svm_problem *train_prob, svm_problem *
 }
 
 /*
- * svm_train:
- *  A simple stochastic Subgradient desqcent approach for linear SVM with hinge loss:
- *
- *  Objective:  0.5 * ||w||^2 + C * Σ max(0, 1 - y_i * (w·x_i + b))
- *
- *  Per-sample subgradient update rule:
- *    1) Always shrink w by factor (1 - eta)  (weight decay for regularization)
- *    2) If y_i * (w·x_i + b) < 1:  (margin is violated)
- *          w <- w + eta * C * y_i * x_i
- *          b <- b + eta * C * y_i
- *       else
- *          b remains the same
- *
- *  We do this for max_iter epochs, shuffling the data each epoch.
+  svm_train:
+   A simple stochastic Subgradient desqcent approach for linear SVM with hinge loss:
+ 
+   Objective:  0.5 * ||w||^2 + C * Σ max(0, 1 - y_i * (w·x_i + b))
+ 
+   Per-sample subgradient update rule:
+     1) Always shrink w by factor (1 - eta)  (weight decay for regularization)
+     2) If y_i * (w·x_i + b) < 1:  (margin is violated)
+           w <- w + eta * C * y_i * x_i
+           b <- b + eta * C * y_i
+           else
+           b remains the same
+ 
+   We do this for max_iter epochs, shuffling the data each epoch.
  */
 svm_model *svm_train(svm_problem *prob, svm_parameters *param){
     //TIP: the prob here is the training dataset
