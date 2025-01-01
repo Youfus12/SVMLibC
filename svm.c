@@ -131,6 +131,89 @@ void split_dataset(svm_problem *full_prob,svm_problem *train_prob, svm_problem *
     free(indices);
     // if you dont need it, free it.
 }
+/*
+    load dataset:
+    Labels : 0 / 1 , will be mapped +1 -1
+    Each Row contains : Four features and a class label
+    Will ignore the  Header
+*/
+int load_dataset(const char *filename, svm_problem *prob, int max_rows)
+{
+    FILE *file = fopen(filename, "r");
+    if (!file) {
+        perror("Failed to open file");
+        return -1;
+    }
+
+    // Initialization of the svm problem:
+    prob->len = 0; // Initialize the number of data points
+    prob->y = (double *)calloc(max_rows, sizeof(double));           // array of labels size len
+    prob->x = (svm_node **)calloc(max_rows, sizeof(svm_node *));    // array of pointers to a feature vector
+
+    if (!prob->y || !prob->x) {
+        fprintf(stderr, "Memory allocation failed\n");
+        fclose(file);
+        return -1;
+    }
+
+    char line[256]; // buffer will read 256 characters each row max, and it's enough.
+
+    // Attempt to read header line
+    /*
+        fgets(buffer, size to read, file to read) if it's able to read will return true, else false
+    */
+    if (fgets(line, sizeof(line), file)) {
+        // The buffer read the header line and ignored it, now will go to the next line
+    }
+
+    while (fgets(line, sizeof(line), file) && prob->len < max_rows) { // or feof(file), if true this means we are at the end of the file
+        double f1, f2, f3, f4;
+        int target;
+
+        /*
+            sscanf: Reads formatted input from a string (line) and assigns the extracted values to the provided variables.
+            Expecting 5 fields:
+            "%lf,%lf,%lf,%lf,%d" : the data should be in this format 
+                lf: double
+                ,: comma
+                d: int +1, -1
+        */
+
+        int fields = sscanf(line, "%lf,%lf,%lf,%lf,%d", &f1, &f2, &f3, &f4, &target);
+        if (fields != 5) {
+            fprintf(stderr, "Skipping invalid line: %s\n", line);
+            continue; // If the line doesn't match the format, skip it
+        }
+
+        if (target != 0 && target != 1) {
+            // Skip lines that aren't binary 0/1
+            fprintf(stderr, "Skipping line with non-binary label: %s\n", line);
+            continue;
+        }
+
+        double label = (target == 0) ? 1.0 : -1.0; // if label of the sample is 0, return 1.0, else -1.0
+
+        // Allocate feature array for 4 features plus a terminator
+        svm_node *x_node = (svm_node *)malloc((MAX_FEATURES + 1) * sizeof(svm_node)); // Allocate for 4 features + 1 terminator
+        if (!x_node) {
+            fprintf(stderr, "Memory allocation failed for features\n");
+            break; // Exit if memory allocation fails
+        }
+
+        x_node[0].index = 1; x_node[0].value = f1;
+        x_node[1].index = 2; x_node[1].value = f2;
+        x_node[2].index = 3; x_node[2].value = f3;
+        x_node[3].index = 4; x_node[3].value = f4;
+        x_node[4].index = -1;  // Terminator, that's why we added 1 in max features
+
+        prob->y[prob->len] = label; 
+        prob->x[prob->len] = x_node;
+        prob->len++; // Increment the number of data points
+    }
+
+    fclose(file); // Close the file when done
+    return prob->len; // Return the number of data points loaded
+}
 
 /*
   svm_train:
