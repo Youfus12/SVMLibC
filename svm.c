@@ -37,7 +37,7 @@ typedef struct svm_model{
 
 }svm_model;
 
-double dot_product(double *w,svm_node *x){
+double dot_product(const double *w,const svm_node *x){
 
     double sum = 0.0;
     while(x->index != -1){
@@ -51,7 +51,7 @@ double dot_product(double *w,svm_node *x){
 The decision function:
 f(x) = w·x + b
 */
-double decision_function(svm_model *model, svm_node *x){
+double decision_function(const svm_model *model, const svm_node *x){
     return dot_product(model->w,x) + model->b;
 }
 
@@ -61,7 +61,7 @@ double decision_function(svm_model *model, svm_node *x){
     will return : +1 if the decision fonction is >= 0 else -1
 */
 
-double svm_predict(svm_model *model, svm_node *x){
+double svm_predict(const svm_model *model,const svm_node *x){
     double val = decision_function(model,x); // x is the one data point
     
     if(val >= 0.0) return 1.0;
@@ -231,7 +231,7 @@ int load_dataset(const char *filename, svm_problem *prob, int max_rows)
  
    We do this for max_iter epochs, shuffling the data each epoch.
  */
-svm_model *svm_train(svm_problem *prob, svm_parameters *param){
+svm_model *svm_train(const svm_problem *prob,const svm_parameters *param){
     //TIP: the prob here is the training dataset
 
     // INITIALIZATION OF THE MODEL:
@@ -244,6 +244,11 @@ svm_model *svm_train(svm_problem *prob, svm_parameters *param){
     int max_iter = param->max_iter;
     int l = prob->len;
 
+
+    // Initialize weights to zero
+    for(int d = 0; d < MAX_FEATURES; d++) {
+        model->w[d] = 0.0;
+    }
     //Shuffeling: Cause the Stochastic gradientDecent preforms better if we randomize the order of the samples
 
     int *indices = (int*)malloc(l * sizeof(int));
@@ -307,6 +312,17 @@ svm_model *svm_train(svm_problem *prob, svm_parameters *param){
 
     return model;
 
+}
+
+double calculate_accuracy(const svm_model *model, const svm_problem *test_prob) {
+    int correct = 0;
+    for(int i = 0; i < test_prob->len; i++) {
+        double pred = svm_predict(model, test_prob->x[i]); // predict the label with the test samples
+        if((int)pred == (int)test_prob->y[i]) {             // compare the predicted label with the test label
+            correct++;
+        }
+    }
+    return ((double)correct / test_prob->len) * 100.0;
 }
 
 void svm_free_model(svm_model *model)
