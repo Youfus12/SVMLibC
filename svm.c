@@ -1,7 +1,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <math.h>
-
+#include <time.h>
 /*
 
     Vector of features of one data point or vector of svm_node:
@@ -10,7 +10,7 @@
 
 */
 //this macros are for our data set iris.csv for now
-#define MAX_ROWS 150
+#define MAX_ROWS 1000
 #define MAX_FEATURES 4  
 
 typedef struct svm_node{
@@ -74,10 +74,17 @@ double svm_predict(const svm_model *model,const svm_node *x){
     test_data : output parameter to store the test portion
     test_size: value from (0.0 - 1.0) indicatin what portion will get the train data
 */
-void split_dataset(svm_problem *full_prob,svm_problem *train_prob, svm_problem *test_prob, double test_precentage){
+void split_dataset(svm_problem *full_prob,svm_problem *train_prob, svm_problem *test_prob, double test_percentage){
+
+    // Check if the test precentage is [0.0 to 1.0] range:
+    if(test_percentage < 0.0 || test_percentage > 1.0){
+        fprintf(stderr, "Error: test_percentage must be between 0.0 and 1.0\n");
+        exit(EXIT_FAILURE);
+    }
+   
 
     int total = full_prob->len;
-    int test_size = (int)(total * test_precentage);
+    int test_size = (int)(total * test_percentage);
     int train_size = total - test_size;
 
     // Shuffling part with the Knuth method shuffle: cause sometimes the dataset can be ordered by features or lables and the splitting will be illogical
@@ -239,6 +246,20 @@ svm_model *svm_train(const svm_problem *prob,const svm_parameters *param){
     model->w = (double*)calloc(MAX_FEATURES,sizeof(double)); //w is a vector of max_features size of doubles, and initialize them with 0 using callco
     model->b = 0.0;
 
+    // Checker :
+    if(!model){
+        fprintf(stderr, "Memory allocation failed for model\n");
+        exit(EXIT_FAILURE);
+    }
+
+    if(!model->w){
+        fprintf(stderr, "Memory allocation failed for weights\n");
+        free(model);
+        exit(EXIT_FAILURE);
+    }
+
+    // Existing training logic
+
     double C = param->C;        // Regularization parameter
     double eta = param->eta;    // Learning Rate
     int max_iter = param->max_iter;
@@ -256,7 +277,7 @@ svm_model *svm_train(const svm_problem *prob,const svm_parameters *param){
 
     // PRocess the entire data set point to point : iteration = epoch
 
-    for(int epoch = 0; epoch < max_iter-1; epoch++ ){
+    for(int epoch = 0; epoch < max_iter; epoch++ ){
 
         // A: shuffle training points each epoch:
         for(int i = l-1; i>0 ; i--){
@@ -329,4 +350,54 @@ void svm_free_model(svm_model *model)
 {
     free(model->w);
     free(model);
+}
+
+
+int main(void)
+{
+
+    svm_problem full_prob, train_prob, test_prob;
+    const char *filename = "datasets/irisExt.csv";
+
+    // 1) Load dataset
+    if (load_dataset(filename, &full_prob, MAX_ROWS) <= 0) {
+        fprintf(stderr, "Failed to load dataset.\n");
+        return EXIT_FAILURE;
+    }
+
+    // 2) Split 
+    split_dataset(&full_prob, &train_prob, &test_prob, 0.2 );
+
+    // 3) Set parameters
+    svm_parameters param;
+    param.C = 1.0;     // bigger C => less regularization
+    param.eps = 1e-3;   // its not used here
+    param.eta = 0.01;
+    param.max_iter = 1000;
+
+    // 4) Train
+    svm_model *model = svm_train(&train_prob, &param);
+    printf("Model trained.\n");
+
+    // 5) Evaluate
+    double accuracy = calculate_accuracy(model, &test_prob);
+    printf("Test Accuracy: %.2f%%\n", accuracy);
+
+    // 7) Cleanup
+    svm_free_model(model);
+
+    // free all data
+    for (int i = 0; i < full_prob.len; i++) {
+        free(full_prob.x[i]);
+    }
+    free(full_prob.x);
+    free(full_prob.y);
+
+    free(train_prob.x);
+    free(train_prob.y);
+
+    free(test_prob.x);
+    free(test_prob.y);
+
+    return 0;
 }

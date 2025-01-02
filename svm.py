@@ -1,45 +1,30 @@
+import pandas as pd
 import numpy as np
-import matplotlib.pyplot as plt
-from matplotlib.animation import FuncAnimation
-from sklearn.datasets import make_classification
-from sklearn.svm import SVC
 
-# Generate synthetic data for binary classification
-X, y = make_classification(n_samples=100, n_features=2, n_informative=2, n_redundant=0, random_state=42)
-y = 2 * y - 1  # Convert labels to -1 and 1
+def generate_iris_rows(num_rows):
+    # Define ranges for the Iris dataset based on general values
+    sepal_length = np.random.uniform(4.3, 7.9, num_rows)  # Range for sepal length
+    sepal_width = np.random.uniform(2.0, 4.4, num_rows)   # Range for sepal width
+    petal_length = np.random.uniform(1.0, 6.9, num_rows)  # Range for petal length
+    petal_width = np.random.uniform(0.1, 2.5, num_rows)   # Range for petal width
+    target = np.random.choice([0, 1], num_rows)        # Target (classification)
 
-# SVM initialization
-svc = SVC(kernel='linear', C=1, max_iter=1, tol=1e-3)
+    # Create a DataFrame
+    iris_data = pd.DataFrame({
+        'sepal length (cm)': sepal_length,
+        'sepal width (cm)': sepal_width,
+        'petal length (cm)': petal_length,
+        'petal width (cm)': petal_width,
+        'Target': target
+    })
 
-# Prepare the figure
-fig, ax = plt.subplots(figsize=(8, 6))
-scatter = ax.scatter(X[:, 0], X[:, 1], c=y, cmap=plt.cm.Paired, edgecolors='k')
-line, = ax.plot([], [], 'k-', lw=2, label='Hyperplane')
-margin_up, = ax.plot([], [], 'k--', lw=1, label='Margin')
-margin_down, = ax.plot([], [], 'k--', lw=1)
-ax.legend()
-ax.set_xlim(X[:, 0].min() - 1, X[:, 0].max() + 1)
-ax.set_ylim(X[:, 1].min() - 1, X[:, 1].max() + 1)
-ax.set_title("SVM Hyperplane Optimization")
+    # Round values to match the typical dataset format
+    iris_data = iris_data.round(1)
 
-# Animation function
-def update(frame):
-    svc.max_iter = frame + 1
-    svc.fit(X, y)
-    coef = svc.coef_.ravel()
-    intercept = svc.intercept_
+    return iris_data
 
-    # Calculate hyperplane and margins
-    x_vals = np.linspace(X[:, 0].min() - 1, X[:, 0].max() + 1, 100)
-    y_vals = -(coef[0] * x_vals + intercept) / coef[1]
-    margin1 = y_vals - 1 / coef[1]
-    margin2 = y_vals + 1 / coef[1]
+# Generate 10 rows as an example
+iris_sample = generate_iris_rows(1000)
 
-    # Update plot
-    line.set_data(x_vals, y_vals)
-    margin_up.set_data(x_vals, margin1)
-    margin_down.set_data(x_vals, margin2)
-
-# Create animation
-ani = FuncAnimation(fig, update, frames=100, repeat=False)
-plt.show()
+# Save to CSV if needed
+iris_sample.to_csv("iris_sampleExtended.csv", index=False)
