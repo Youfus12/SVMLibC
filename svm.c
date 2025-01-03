@@ -42,6 +42,9 @@ typedef struct svm_model{
 double dot_product(const double *w, const svm_node *x);
 double decision_function(const svm_model *model , const svm_node *x);
 double svm_predict(const svm_model *model, const svm_node *x);
+void split_dataset(svm_problem *full_prob, svm_problem *train_prob, svm_problem *test_prob, double test_percentage);
+int load_dataset(const char *filename, svm_problem *prob, int max_rows, int selected_features[]);
+
 
 double dot_product(const double *w,const svm_node *x){
 
@@ -158,7 +161,7 @@ void split_dataset(svm_problem *full_prob,svm_problem *train_prob, svm_problem *
     Each Row contains : Four features and a class label
     Will ignore the  Header
 */
-int load_dataset(const char *filename, svm_problem *prob, int max_rows)
+int load_dataset(const char *filename, svm_problem *prob, int max_rows, int selected_features[])
 {
     FILE *file = fopen(filename, "r");
     if (!file) {
@@ -214,17 +217,37 @@ int load_dataset(const char *filename, svm_problem *prob, int max_rows)
 
         double label = (target == 0) ? 1.0 : -1.0; // if label of the sample is 0, return 1.0, else -1.0
 
-        // Allocate feature array for 4 features plus a terminator
-        svm_node *x_node = (svm_node *)malloc((MAX_FEATURES + 1) * sizeof(svm_node)); // Allocate for 4 features + 1 terminator
+        // Allocate feature array for 2 features plus a terminator
+        svm_node *x_node = (svm_node *)malloc((2 + 1) * sizeof(svm_node)); // Allocate for 2 features + 1 terminator
         if (!x_node) {
             fprintf(stderr, "Memory allocation failed for features\n");
             break; // Exit if memory allocation fails
         }
+        // W will remap the selected features to indices 1 and 2
+        for(int s = 0; s < 2; s++){
+            int feat = selected_features[s]; // contains the real indice of the feature
+            x_node[s].index = s +1 ;
+            /*
+            For s = 0 (first selected feature):
+            x_node[0].index = 1
+            For s = 1 (second selected feature):
+            x_node[1].index = 2
+            */
+            switch(feat){
+                case 1: // if the real indice is 1 we will affect the value of the f1, first feature
+                x_node[s].value = f1;
+                break;
+                case 2:
+                x_node[s].value = f2;
+                case 3:
+                x_node[s].value = f3;
+                case 4:
+                x_node[s].value = f4;
+                default:
+                x_node[s].value = 0.0;
+            }
+        }
 
-        x_node[0].index = 1; x_node[0].value = f1;
-        x_node[1].index = 2; x_node[1].value = f2;
-        x_node[2].index = 3; x_node[2].value = f3;
-        x_node[3].index = 4; x_node[3].value = f4;
         x_node[4].index = -1;  // Terminator, that's why we added 1 in max features
 
         prob->y[prob->len] = label; 
@@ -287,6 +310,11 @@ svm_model *svm_train(const svm_problem *prob,const svm_parameters *param){
     //Shuffeling: Cause the Stochastic gradientDecent preforms better if we randomize the order of the samples
 
     int *indices = (int*)malloc(l * sizeof(int));
+    if(!indices){
+        fprintf(stderr, "Memory allocation failed for training indices\n");
+        svm_free_model(model);
+        exit(EXIT_FAILURE);
+    }
     for(int i = 0; i < l; i++) indices[i] = i;
 
     // PRocess the entire data set point to point : iteration = epoch
@@ -366,52 +394,3 @@ void svm_free_model(svm_model *model)
     free(model);
 }
 
-
-int main(void)
-{
-
-    svm_problem full_prob, train_prob, test_prob;
-    const char *filename = "datasets/irisExt.csv";
-
-    // 1) Load dataset
-    if (load_dataset(filename, &full_prob, MAX_ROWS) <= 0) {
-        fprintf(stderr, "Failed to load dataset.\n");
-        return EXIT_FAILURE;
-    }
-
-    // 2) Split 
-    split_dataset(&full_prob, &train_prob, &test_prob, 0.2 );
-
-    // 3) Set parameters
-    svm_parameters param;
-    param.C = 1.0;     // bigger C => less regularization
-    param.eps = 1e-3;   // its not used here
-    param.eta = 0.01;
-    param.max_iter = 1000;
-
-    // 4) Train
-    svm_model *model = svm_train(&train_prob, &param);
-    printf("Model trained.\n");
-
-    // 5) Evaluate
-    double accuracy = calculate_accuracy(model, &test_prob);
-    printf("Test Accuracy: %.2f%%\n", accuracy);
-
-    // 7) Cleanup
-    svm_free_model(model);
-
-    // free all data
-    for (int i = 0; i < full_prob.len; i++) {
-        free(full_prob.x[i]);
-    }
-    free(full_prob.x);
-    free(full_prob.y);
-
-    free(train_prob.x);
-    free(train_prob.y);
-
-    free(test_prob.x);
-    free(test_prob.y);
-
-    return 0;
-}
