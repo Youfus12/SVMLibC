@@ -49,7 +49,10 @@ int load_dataset(const char *filename, svm_problem *prob, int max_rows, int sele
 svm_model *svm_train(const svm_problem *prob, const svm_parameters *param);
 double calculate_accuracy(const svm_model *model, const svm_problem *test_prob);
 void svm_free_model(svm_model *model);
+int write_plot_data(const svm_problem *prob, const svm_model *model);
+int plot_data(FILE *gnuplot_pipe, int feature1, int feature2);
 
+//--------------------------------------------------------------------------------
 
 double dot_product(const double *w,const svm_node *x){
 
@@ -552,3 +555,30 @@ int write_plot_data(const svm_problem *prob, const svm_model *model){
     return 0;
 }
 
+// group of comands for gnuplot and plotting the stored cordinates :
+int plot_data(FILE *gnuplot_pipe, int feature1, int feature2){
+    // commands to setup the plot
+    fprintf(gnuplot_pipe,"set title 'SVM Decision Boundry with Margins\n");
+    fprintf(gnuplot_pipe,"set xlabel 'Feature %d'\n",feature1);
+    fprintf(gnuplot_pipe,"set ylabel 'Feature %d'\n",feature2);
+    fprintf(gnuplot_pipe,"set grid\n");
+    fprintf(gnuplot_pipe,"set key outside\n");
+    fprintf(gnuplot_pipe,"set autoscale fix\n");
+    fprintf(gnuplot_pipe,"set size ration -1\n"); // to fix the aspect ratio
+
+    // Styling for cleaner visualisation
+    fprintf(gnuplot_pipe,"set style line 1 lc rgb 'orange' pt 7`s 1.5 # Class +1\n");
+    fprintf(gnuplot_pipe,"set style line 2 lc rgb 'black' pt 7`s 1.5 # Class -1\n");
+    fprintf(gnuplot_pipe,"set style line 3 lc rgb 'green' lt 1 lw 2 # Hyperplane\n");
+    fprintf(gnuplot_pipe,"set style line 4 lc rgb 'black' lt 2 lw 2 dashtype 2 # Margins\n");
+
+    // Plotting
+    fprintf(gnuplot_pipe, "plot 'class1.dat' with points ls 1 title '+1', \\\n");
+    fprintf(gnuplot_pipe, "     'class2.dat' with points ls 2 title '-1', \\\n");
+    fprintf(gnuplot_pipe, "     'hyperplane.dat' with lines ls 3 title 'Hyperplane', \\\n");
+    fprintf(gnuplot_pipe, "     'margin1.dat' with lines ls 4 title 'Margin +1', \\\n");
+    fprintf(gnuplot_pipe, "     'margin2.dat' with lines ls 4 title 'Margin -1'\n");
+
+    fflush(gnuplot_pipe); //Ensure commands are sent immediately
+    return 0;
+}
