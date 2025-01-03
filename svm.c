@@ -53,6 +53,9 @@ int write_plot_data(const svm_problem *prob, const svm_model *model);
 int plot_data(FILE *gnuplot_pipe, int feature1, int feature2);
 void free_dataset(svm_problem *prob, int free_x_nodes);
 void cleanup_temp_files();
+void counter_points(const svm_model *model, const svm_problem *prob);
+
+
 //--------------------------------------------------------------------------------
 
 double dot_product(const double *w,const svm_node *x){
@@ -138,6 +141,12 @@ void split_dataset(svm_problem *full_prob,svm_problem *train_prob, svm_problem *
     train_prob->len = train_size;
     train_prob->y = (double *)malloc(train_size * sizeof(double)); // array of labels
     train_prob->x = (svm_node **)malloc(train_size * sizeof(svm_node*)); //array of pointers , that point to an array of features of one datapoint(svm_node)
+    if (!train_prob->y || !train_prob->x) {
+        fprintf(stderr, "Memory allocation failed for training data\n");
+        free(indices);
+        exit(EXIT_FAILURE);
+    }
+
     for(int i= 0; i < train_size; i++){
         int idx = indices[i];
         train_prob ->y[i] = full_prob->y[idx];
@@ -235,7 +244,7 @@ int load_dataset(const char *filename, svm_problem *prob, int max_rows, int sele
         // W will remap the selected features to indices 1 and 2
         for(int s = 0; s < 2; s++){
             int feat = selected_features[s]; // contains the real indice of the feature
-            x_node[s].index = s +1 ;
+            x_node[s].index = s + 1 ;
             /*
             For s = 0 (first selected feature):
             x_node[0].index = 1
@@ -244,20 +253,24 @@ int load_dataset(const char *filename, svm_problem *prob, int max_rows, int sele
             */
             switch(feat){
                 case 1: // if the real indice is 1 we will affect the value of the f1, first feature
-                x_node[s].value = f1;
-                break;
+                    x_node[s].value = f1;
+                    break;
                 case 2:
-                x_node[s].value = f2;
+                    x_node[s].value = f2;
+                    break;
                 case 3:
-                x_node[s].value = f3;
+                    x_node[s].value = f3;
+                    break;
                 case 4:
-                x_node[s].value = f4;
+                    x_node[s].value = f4;
+                    break;
                 default:
-                x_node[s].value = 0.0;
+                    x_node[s].value = 0.0;
+                    break;
             }
         }
 
-        x_node[4].index = -1;  // Terminator, that's why we added 1 in max features
+        x_node[2].index = -1;  // Terminator, that's why we added 1 in max features
 
         prob->y[prob->len] = label; 
         prob->x[prob->len] = x_node;
@@ -313,7 +326,7 @@ svm_model *svm_train(const svm_problem *prob,const svm_parameters *param){
 
 
     // Initialize weights to zero
-    for(int d = 0; d < MAX_FEATURES; d++) {
+    for(int d = 0; d < 2; d++) {
         model->w[d] = 0.0;
     }
     //Shuffeling: Cause the Stochastic gradientDecent preforms better if we randomize the order of the samples
@@ -351,7 +364,7 @@ svm_model *svm_train(const svm_problem *prob,const svm_parameters *param){
                 shrink all w values or Penalazing large weigths by shrinking them to 0:
              */
 
-            for(int d = 0; d < MAX_FEATURES; d++){
+            for(int d = 0; d < 2; d++){
                 model->w[d] = model->w[d] * (1-eta); 
             }
 
@@ -430,7 +443,7 @@ return -1 if fails
 
 int write_plot_data(const svm_problem *prob, const svm_model *model){
     // File names 
-    const  char *class1_file = "class1.dat"; // +1
+    const char *class1_file = "class1.dat"; // +1
     const char *class2_file = "class2.dat";  // -1
     const char *hyperplane_file = "hyperplane.dat"; // Stores two points defining the SVM decision boundary 
     const char *margin1_file = "margin1.dat";       // Stores two points defining the upper margin (w·x + b = 1).
@@ -464,12 +477,12 @@ int write_plot_data(const svm_problem *prob, const svm_model *model){
 
         while(x->index != -1){
             if(x->index == 1) f1 = x->value;
-            else if(x->index == 2) f2= x->value;  
+            if(x->index == 2) f2= x->value;  
             x++;
         }
         // store the features of the sample in its class
-        if(prob->y[i] == 1) fprintf(f_class1, "%lf %lf\n",f1,f2);
-        else if(prob->y[i] == -1) fprintf(f_class2, "%lf %lf\n",f1,f2);
+        if(prob->y[i] == 1.0) fprintf(f_class1, "%lf %lf\n",f1,f2);
+        else if(prob->y[i] == -1.0) fprintf(f_class2, "%lf %lf\n",f1,f2);
     }
 
     fclose(f_class1);
@@ -494,8 +507,11 @@ int write_plot_data(const svm_problem *prob, const svm_model *model){
     for(int i = 0; i<prob->len; i++){
         double current_f1 = 0.0;
         svm_node *x = prob->x[i];
-        while(x->index!=-1){
-            if(x->index == 1) current_f1 = x->value; break;
+        while(x->index != -1){
+            if(x->index == 1){
+                current_f1 = x->value; 
+                break;
+            }
             x++;
         }
 
@@ -518,16 +534,16 @@ int write_plot_data(const svm_problem *prob, const svm_model *model){
     
     // Calcuulate f2 that is related to the f1 min and max for hyperplane For plotting it
 
-    double f2_hyper_min = -(model->w[0]*f1_min + model->b) / model->w[1];
+    double f2_hyper_min = -(model->w[0] * f1_min + model->b) / model->w[1];
     double f2_hyper_max = -(model->w[0] * f1_max + model->b) / model->w[1];
 
-    // calcultae f2 for margin :
+    // Calculate corresponding f2 values for margins
     double f2_margin1_min = -(model->w[0] * f1_min + model->b - 1) / model->w[1];
     double f2_margin1_max = -(model->w[0] * f1_max + model->b - 1) / model->w[1];
 
     double f2_margin2_min = -(model->w[0] * f1_min + model->b + 1) / model->w[1];
-    double f2_margin2_max = -(model->w[0] * f1_max + model->b + 1) / model->w[1]; 
-
+    double f2_margin2_max = -(model->w[0] * f1_max + model->b + 1) / model->w[1];
+    
     // Check for debuging
     printf("\nHyperplane Points:\n");
     printf("(%lf, %lf)\n", f1_min, f2_hyper_min);
@@ -550,7 +566,11 @@ int write_plot_data(const svm_problem *prob, const svm_model *model){
     fprintf(f_margin1,"%lf %lf\n",f1_max,f2_margin1_max);
 
     fprintf(f_margin2,"%lf %lf\n",f1_min,f2_margin2_min);
-    fprintf(f_margin2,"%lf %lf\n",f1_min,f2_margin2_min);
+    fprintf(f_margin2,"%lf %lf\n",f1_max,f2_margin2_max);
+
+    fclose(f_hyperplane);
+    fclose(f_margin1);
+    fclose(f_margin2);
 
     //if everything works
     return 0;
@@ -559,17 +579,17 @@ int write_plot_data(const svm_problem *prob, const svm_model *model){
 // group of comands for gnuplot and plotting the stored cordinates :
 int plot_data(FILE *gnuplot_pipe, int feature1, int feature2){
     // commands to setup the plot
-    fprintf(gnuplot_pipe,"set title 'SVM Decision Boundry with Margins\n");
+    fprintf(gnuplot_pipe,"set title 'SVM Decision Boundry with Margins'\n");
     fprintf(gnuplot_pipe,"set xlabel 'Feature %d'\n",feature1);
     fprintf(gnuplot_pipe,"set ylabel 'Feature %d'\n",feature2);
     fprintf(gnuplot_pipe,"set grid\n");
     fprintf(gnuplot_pipe,"set key outside\n");
     fprintf(gnuplot_pipe,"set autoscale fix\n");
-    fprintf(gnuplot_pipe,"set size ration -1\n"); // to fix the aspect ratio
+    fprintf(gnuplot_pipe,"set size ratio -1\n"); // to fix the aspect ratio
 
     // Styling for cleaner visualisation
-    fprintf(gnuplot_pipe,"set style line 1 lc rgb 'orange' pt 7`s 1.5 # Class +1\n");
-    fprintf(gnuplot_pipe,"set style line 2 lc rgb 'black' pt 7`s 1.5 # Class -1\n");
+    fprintf(gnuplot_pipe,"set style line 1 lc rgb 'orange' pt 7 ps 1.5 # Class +1\n");
+    fprintf(gnuplot_pipe,"set style line 2 lc rgb 'black' pt 7 ps 1.5 # Class -1\n");
     fprintf(gnuplot_pipe,"set style line 3 lc rgb 'green' lt 1 lw 2 # Hyperplane\n");
     fprintf(gnuplot_pipe,"set style line 4 lc rgb 'black' lt 2 lw 2 dashtype 2 # Margins\n");
 
@@ -665,4 +685,149 @@ void counter_points(const svm_model *model, const svm_problem *prob) {
     printf("  - Below Margin: %d\n", neg_below);
     printf("  - Within Margin: %d\n", neg_within);
     printf("  - Misclassified: %d\n", neg_misclassified);
+}
+
+
+
+// Main Function
+int main(int argc, char *argv[])
+{
+
+    const char *filename = "datasets/irisExt.csv";  // Path of the data set
+    int feature1, feature2;                         // Variables to store the Indices of the two features selected by the user for svm training and plotting
+    int selected_features[2];                       // An array to hold the two selected feature indices for easier access
+    char continue_choice;                           // Store the decision of the user to continue or exit program
+
+
+    // i will use a while loop to train and plot the model multiple times with different features without needing to restart the program
+
+    while(1){
+        srand(42); // to fix the seed to have the same random value for every iteration.
+        svm_problem full_prob = {0}, train_prob = {0}, test_prob = {0};
+        svm_parameters param;       // Stores the paraeters of the svm model
+        svm_model *model = NULL;    // Pointer to the trained SVM model, which will store the weights and bias after training
+        double accuracy;            
+
+        // 1) Prompt user to select two features
+        printf("\nSelect two features for SVM training and plotting.\n");
+        printf("Available features:\n");
+        printf("1. Sepal Length (cm)\n2. Sepal Width (cm)\n3. Petal Length (cm)\n4. Petal Width (cm)\n");
+        printf("Enter two distinct feature indices (e.g., '1 3'): ");
+        if (scanf("%d %d", &feature1, &feature2) != 2) { // will execute and store the values in  feature1 and 2
+            fprintf(stderr, "Invalid input. Exiting.\n");
+            break;
+        }
+
+        // Validate feature indices
+        if (feature1 < 1 || feature1 > MAX_FEATURES || feature2 < 1 || feature2 > MAX_FEATURES || feature1 == feature2) {
+            fprintf(stderr, "Invalid feature indices. Please enter two distinct integers between 1 and %d.\n", MAX_FEATURES);
+            // Clear input buffer
+            while ((continue_choice = getchar()) != '\n' && continue_choice != EOF);
+            continue;
+        }
+
+        selected_features[0] = feature1;
+        selected_features[1] = feature2;
+
+        // 2) Load dataset with selected features
+        if (load_dataset(filename, &full_prob, MAX_ROWS, selected_features) <= 0) {
+            fprintf(stderr, "Failed to load dataset.\n");
+            break;
+        }
+
+        // 3) Split dataset
+        split_dataset(&full_prob, &train_prob, &test_prob, 0.2);
+
+        // Now each feature is approximated to zero mean and unit variance.
+
+        // 5) Set parameters
+        param.C = 58.0;       // Regularization parameter
+        param.eps = 1e-3;    // Not used in this implementation
+        param.eta = 0.01;    // Learning rate
+        param.max_iter = 1500;
+
+        // 6) Train model
+        model = svm_train(&train_prob, &param);
+        if (!model) {
+            fprintf(stderr, "Training failed.\n");
+            // Proceed to cleanup
+            free_dataset(&full_prob, 1);
+            free_dataset(&train_prob, 0);
+            free_dataset(&test_prob, 0);
+            continue;
+        }
+        printf("Model trained.\n");
+
+        // Print model weights and bias
+        printf("\nModel Weights:\n");
+        for(int d = 0; d < 2; d++) {
+            printf("w for Feature %d = %.4f\n", selected_features[d], model->w[d]);
+        }
+        printf("Bias (b) = %.4f\n", model->b);
+
+        // 7) Evaluate
+        accuracy = calculate_accuracy(model, &test_prob);
+        printf("Test Accuracy: %.2f%%\n", accuracy);
+
+        // 8) Open gnuplot pipe with correct flag
+        /*
+             Establishes a communication channel between the C program and Gnuplot for real time plotting
+            popen : will create a pipe to invoke the shell
+            -presist flag: keeps the plot window open even after the program exits(so we can compare to other configurations)
+            gnuplot_pipe is a file pointer that can be used to send commands directly to Gnuplot for plotting
+        */
+    
+
+        FILE *gnuplot_pipe = popen("gnuplot -persist", "w");
+        if (!gnuplot_pipe) {
+            perror("Failed to open gnuplot");
+            svm_free_model(model);
+            free_dataset(&full_prob, 1);
+            free_dataset(&train_prob, 0);
+            free_dataset(&test_prob, 0);
+            return EXIT_FAILURE;
+        }
+
+        // 9) Write plot data (including margins): If write_plot_data fails (returns non zero), an error message is displayed, and frees the allocated memory
+
+        if (write_plot_data(&train_prob, model) != 0) {
+            fprintf(stderr, "Failed to write plot data. Skipping plot.\n");
+            pclose(gnuplot_pipe);
+            svm_free_model(model);
+            free_dataset(&full_prob, 1);
+            free_dataset(&train_prob, 0);
+            free_dataset(&test_prob, 0);
+            continue;
+        }
+
+        // Count points relative to margins
+        counter_points(model, &train_prob); // will count how many points are in(in margin) or above(upper margin) or lower (lower margin)
+
+        // Plot data (including margins)
+        plot_data(gnuplot_pipe, selected_features[0], selected_features[1]); 
+        //The plot_data function sends appropriate commands to Gnuplot to read these files and generate the visual plot
+        printf("Plot generated for features %d and %d.\n", selected_features[0], selected_features[1]);
+
+        // 10) Cleanup for this iteration
+        pclose(gnuplot_pipe);
+        svm_free_model(model);
+        free_dataset(&full_prob, 1);      // Free x_nodes
+        free_dataset(&train_prob, 0);     // Do not free x_nodes (cause train and test have the same x_nodes, and its free)
+        free_dataset(&test_prob, 0);      // Do not free x_nodes
+   
+
+        //Remove temporary plot data files
+        cleanup_temp_files();
+
+        // 11) Prompt user to continue or exit
+        printf("\nDo you want to train and plot with another pair of features? (y/n): ");
+        fflush(stdout); // Ensure the prompt is displayed immediately
+        scanf(" %c", &continue_choice);
+        if(continue_choice == 'n' || continue_choice == 'N'){
+            printf("Exiting the program.\n");
+            break;
+        }
+    }
+
+    return 0;
 }
