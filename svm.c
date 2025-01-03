@@ -2,6 +2,8 @@
 #include <stdlib.h>
 #include <math.h>
 #include <time.h>
+#include <string.h>
+#include <float.h>
 /*
 
     Vector of features of one data point or vector of svm_node:
@@ -44,7 +46,9 @@ double decision_function(const svm_model *model , const svm_node *x);
 double svm_predict(const svm_model *model, const svm_node *x);
 void split_dataset(svm_problem *full_prob, svm_problem *train_prob, svm_problem *test_prob, double test_percentage);
 int load_dataset(const char *filename, svm_problem *prob, int max_rows, int selected_features[]);
-void svm_free_model(svm_model *model)
+svm_model *svm_train(const svm_problem *prob, const svm_parameters *param);
+double calculate_accuracy(const svm_model *model, const svm_problem *test_prob);
+void svm_free_model(svm_model *model);
 
 
 double dot_product(const double *w,const svm_node *x){
@@ -400,5 +404,151 @@ void svm_free_model(svm_model *model)
 {
     free(model->w);
     free(model);
+}
+
+/*
+    VISUALISATION PART:
+    -WE will be using Gnuplot
+ */
+
+/* write_plot_data:
+Generates temp files containing the cordinates of the datapoints of each class,
+and the svm decision boundry (hyperplan) and the two margins
+
+its job :
+-Separates data points into two classes based on their labels.
+-Calculates the SVM decision boundary (hyperplane) and its margins.
+-Writes the coordinates of these elements to respective data files.
+
+Return 0 if everything  good
+return -1 if fails
+*/
+
+int write_plot_data(const svm_problem *prob, const svm_model *model){
+    // File names 
+    const  char *class1_file = "class1.dat"; // +1
+    const char *class2_file = "class2.dat";  // -1
+    const char *hyperplane_file = "hyperplane.dat"; // Stores two points defining the SVM decision boundary 
+    const char *margin1_file = "margin1.dat";       // Stores two points defining the upper margin (w·x + b = 1).
+    const char *margin2_file = "margin2.dat";       // Stores two points defining the upper margin (w·x + b = -1).
+
+    // open files in write mode:
+
+    FILE *f_class1 = fopen(class1_file,"w");
+    FILE *f_class2 = fopen(class2_file, "w");
+    FILE *f_hyperplane = fopen(hyperplane_file, "w");
+    FILE *f_margin1 = fopen(margin1_file, "w");
+    FILE *f_margin2 = fopen(margin2_file, "w");
+
+    if(!f_class1 || !f_class2 || !f_hyperplane || !f_margin1 || !f_margin2 ){
+
+        perror("Failed to open plot data files"); // Prints error msg
+        if (f_class1) fclose(f_class1); //if its open close it
+        if (f_class2) fclose(f_class2);
+        if (f_hyperplane) fclose(f_hyperplane);
+        if (f_margin1) fclose(f_margin1);
+        if (f_margin2) fclose(f_margin2);
+        return -1;
+
+    }
+
+    // Separation class 1 and class 2 files
+
+    for(int i = 0; i < prob->len;i++){
+        double f1 = 0.0 , f2= 0.0;
+        svm_node *x = prob->x[i]; // *x pointing to an array of features
+
+        while(x->index != -1){
+            if(x->index == 1) f1 = x->value;
+            else if(x->index == 2) f2= x->value;  
+            x++;
+        }
+        // store the features of the sample in its class
+        if(prob->y[i] == 1) fprintf(f_class1, "%lf %lf\n",f1,f2);
+        else if(prob->y[i] == -1) fprintf(f_class2, "%lf %lf\n",f1,f2);
+    }
+
+    fclose(f_class1);
+    fclose(f_class2);
+
+    /* Here we will use the trained model to
+    Calculate hyperplane: w1*f1 + w2*f2 + b = 0 => f2 = -(w1*f1 + b)/w2
+    Calculate margins: w1*f1 + w2*f2 + b = 1 and w1*f1 + w2*f2 + b = -1
+    */
+
+   /*
+     first we will identifie the minimum and maximum values of Feature 1 across all 
+     data points to determine the range over which to plot the hyperplane and margins.
+
+     then use it to calc the min max of f2 using the min max f1 and the trained model(w and b trained)
+     for hyperplane, margin1 and margin2 lines
+
+   */
+
+    double f1_min = DBL_MAX, f1_max = -DBL_MAX; // dbl_max : lowest double value possible , to make sure that the feature is higher in value
+
+    for(int i = 0; i<prob->len; i++){
+        double current_f1 = 0.0;
+        svm_node *x = prob->x[i];
+        while(x->index!=-1){
+            if(x->index == 1) current_f1 = x->value; break;
+            x++;
+        }
+
+        if(current_f1 > f1_max) f1_max = current_f1;
+        if(current_f1 < f1_min) f1_min = current_f1;
+    }
+    // Extend the range slightly for better visualization, 10% margin
+    double range = (f1_max - f1_min) * 0.1;
+    f1_min -= range;
+    f1_max += range;
+
+    // Ensure w2 is not zero to avoid division by zero
+    if (model->w[1] == 0) {
+        fprintf(stderr, "Cannot plot hyperplane or margins because w2 is zero.\n");
+        fclose(f_hyperplane);
+        fclose(f_margin1);
+        fclose(f_margin2);
+        return -1;
+}   
+    
+    // Calcuulate f2 that is related to the f1 min and max for hyperplane For plotting it
+
+    double f2_hyper_min = -(model->w[0]*f1_min + model->b) / model->w[1];
+    double f2_hyper_max = -(model->w[0] * f1_max + model->b) / model->w[1];
+
+    // calcultae f2 for margin :
+    double f2_margin1_min = -(model->w[0] * f1_min + model->b - 1) / model->w[1];
+    double f2_margin1_max = -(model->w[0] * f1_max + model->b - 1) / model->w[1];
+
+    double f2_margin2_min = -(model->w[0] * f1_min + model->b + 1) / model->w[1];
+    double f2_margin2_max = -(model->w[0] * f1_max + model->b + 1) / model->w[1]; 
+
+    // Check for debuging
+    printf("\nHyperplane Points:\n");
+    printf("(%lf, %lf)\n", f1_min, f2_hyper_min);
+    printf("(%lf, %lf)\n", f1_max, f2_hyper_max);
+
+    printf("\nMargin1 Points (w·x + b = 1):\n");
+    printf("(%lf, %lf)\n", f1_min, f2_margin1_min);
+    printf("(%lf, %lf)\n", f1_max, f2_margin1_max);
+
+    printf("\nMargin2 Points (w·x + b = -1):\n");
+    printf("(%lf, %lf)\n", f1_min, f2_margin2_min);
+    printf("(%lf, %lf)\n", f1_max, f2_margin2_max);
+
+
+    // Write the the two points of hyperplane/margin1,2
+    fprintf(f_hyperplane,"%lf %lf\n",f1_min,f2_hyper_min);
+    fprintf(f_hyperplane,"%lf %lf\n",f1_max,f2_hyper_max);
+
+    fprintf(f_margin1,"%lf %lf\n",f1_min,f2_margin1_min);
+    fprintf(f_margin1,"%lf %lf\n",f1_max,f2_margin1_max);
+
+    fprintf(f_margin2,"%lf %lf\n",f1_min,f2_margin2_min);
+    fprintf(f_margin2,"%lf %lf\n",f1_min,f2_margin2_min);
+
+    //if everything works
+    return 0;
 }
 
