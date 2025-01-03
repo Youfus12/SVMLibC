@@ -51,7 +51,8 @@ double calculate_accuracy(const svm_model *model, const svm_problem *test_prob);
 void svm_free_model(svm_model *model);
 int write_plot_data(const svm_problem *prob, const svm_model *model);
 int plot_data(FILE *gnuplot_pipe, int feature1, int feature2);
-
+void free_dataset(svm_problem *prob, int free_x_nodes);
+void cleanup_temp_files();
 //--------------------------------------------------------------------------------
 
 double dot_product(const double *w,const svm_node *x){
@@ -581,4 +582,87 @@ int plot_data(FILE *gnuplot_pipe, int feature1, int feature2){
 
     fflush(gnuplot_pipe); //Ensure commands are sent immediately
     return 0;
+}
+
+
+// Cleaners
+void cleanup_temp_files(){
+    remove("class1.dat");
+    remove("class2.dat");
+    remove("hyperplane.dat");
+    remove("margin1.dat");
+    remove("margin2.dat");
+}
+
+void free_dataset(svm_problem *prob, int free_x_nodes){
+    if(prob->x){
+        if(free_x_nodes){
+            for(int i = 0; i < prob->len; i++) {
+                free(prob->x[i]);
+            }
+        }
+        free(prob->x);
+    }
+    if(prob->y){
+        free(prob->y);
+    }
+
+}
+
+// Counter how many points lie above, below or in the margins:
+// Counts and prints how many points lie above, within, and below the margins, including misclassifications
+void counter_points(const svm_model *model, const svm_problem *prob) {
+    int pos_above = 0, pos_within = 0, pos_misclassified = 0;
+    int neg_below = 0, neg_within = 0, neg_misclassified = 0;
+    
+    for(int i = 0; i < prob->len; i++) {
+        double f1 = 0.0, f2 = 0.0;
+        svm_node *x = prob->x[i];
+        double y = prob->y[i];
+        
+        // Extract feature values
+        while(x->index != -1) {
+            if(x->index == 1) f1 = x->value;
+            if(x->index == 2) f2 = x->value;
+            x++;
+        }
+        
+        // Compute decision function
+        double decision = model->w[0] * f1 + model->w[1] * f2 + model->b;
+        
+        if(y == 1.0){
+            if(decision >= 1.0){
+                pos_above++;
+            }
+            else if(decision >= 0.0 && decision < 1.0){
+                pos_within++;
+            }
+            else{ // decision < 0.0
+                pos_misclassified++;
+            }
+        }
+        else if(y == -1.0){
+            if(decision <= -1.0){
+                neg_below++;
+            }
+            else if(decision > -1.0 && decision <= 0.0){
+                neg_within++;
+            }
+            else{ // decision > 0.0 that means the point is above the hyper plane and that missclasification ya que label is -1
+                neg_misclassified++;
+            }
+        }
+    }
+    
+    // Print results
+    printf("\nClassification Summary:\n");
+    printf("Positive Class (+1):\n");
+    printf("  - Above Margin: %d\n", pos_above);
+    printf("  - Within Margin: %d\n", pos_within);
+    printf("  - Misclassified: %d\n", pos_misclassified);
+    
+    printf("Negative Class (-1):\n");
+    printf("  - Below Margin: %d\n", neg_below);
+    printf("  - Within Margin: %d\n", neg_within);
+    printf("  - Misclassified: %d\n", neg_misclassified);
 }
