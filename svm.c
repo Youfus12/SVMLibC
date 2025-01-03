@@ -37,6 +37,12 @@ typedef struct svm_model{
 
 }svm_model;
 
+
+//All the fonction declaration , later ill transport them in a header file
+double dot_product(const double *w, const svm_node *x);
+double decision_function(const svm_model *model , const svm_node *x);
+double svm_predict(const svm_model *model, const svm_node *x);
+
 double dot_product(const double *w,const svm_node *x){
 
     double sum = 0.0;
@@ -91,6 +97,10 @@ void split_dataset(svm_problem *full_prob,svm_problem *train_prob, svm_problem *
 
 
     int  *indices = (int *)malloc(total * sizeof(int)); //array of ints size l
+    if(!indices){
+        fprintf(stderr, "Memory allocation failed for indices\n");
+        exit(EXIT_FAILURE);
+    }
 
     for(int i = 0; i< total; i++){
         indices[i] = i; //sorted array from [0,1, ..., total -1]
@@ -128,7 +138,11 @@ void split_dataset(svm_problem *full_prob,svm_problem *train_prob, svm_problem *
     test_prob ->len = test_size;
     test_prob ->y = (double *)malloc(test_size * sizeof(double));
     test_prob ->x = (svm_node**)malloc(test_size *sizeof(svm_node*));
-
+    if (!test_prob->y || !test_prob->x) {
+        fprintf(stderr, "Memory allocation failed for testing data\n");
+        free(indices);
+        exit(EXIT_FAILURE);
+    }
     for(int i = 0; i < test_size; i++){
         int idx = indices[train_size + i];
         test_prob->y[i] = full_prob->y[idx];
