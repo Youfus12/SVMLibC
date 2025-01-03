@@ -44,6 +44,7 @@ double decision_function(const svm_model *model , const svm_node *x);
 double svm_predict(const svm_model *model, const svm_node *x);
 void split_dataset(svm_problem *full_prob, svm_problem *train_prob, svm_problem *test_prob, double test_percentage);
 int load_dataset(const char *filename, svm_problem *prob, int max_rows, int selected_features[]);
+void svm_free_model(svm_model *model)
 
 
 double dot_product(const double *w,const svm_node *x){
@@ -357,10 +358,13 @@ svm_model *svm_train(const svm_problem *prob,const svm_parameters *param){
                 b <- b + eta * C * y_i
             */
            if(margin < 1){
-            while(xi->index != -1){
-            int d = xi->index - 1; // To  0 based indexing
-            model->w[d] += eta * C * yi * xi->value; // Dont forget xi is a pointer of vector features and its pointing to the first value of it
-            xi++;
+            svm_node *xi_update = prob ->x[idx]; // Reset pointer
+            while(xi_update->index != -1){
+                int d = xi_update->index - 1; // To  0 based indexing
+                if(d >=0 && d < 2){
+                     model->w[d] += eta * C * yi * xi_update->value; // Dont forget xi is a pointer of vector features and its pointing to the first value of it
+                }
+                xi_update++;
               }
             model -> b += eta * C * yi;        
            }
@@ -368,8 +372,12 @@ svm_model *svm_train(const svm_problem *prob,const svm_parameters *param){
 
         }
 
-    }
     
+    // Progress  for debugging
+        if((epoch+1) % 100 == 0){
+            printf("Completed epoch %d/%d\n", epoch+1, max_iter);
+        }
+    }
     
     free(indices); // Good job indices[], now be Free.
 
