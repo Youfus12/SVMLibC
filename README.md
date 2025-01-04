@@ -1,6 +1,7 @@
 SVMLibC is a minimalist implementation of a Support Vector Machine (SVM) written in C. Designed for educational purposes, this library demonstrates the fundamental concepts of SVMs, including data preprocessing, training using Stochastic Subgradient Descent (SGD), and visualization of decision boundaries using Gnuplot.
 
 Table of Contents:
+
 -Project Overview
 -Features
 -Data Format
