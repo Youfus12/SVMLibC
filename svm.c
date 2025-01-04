@@ -39,6 +39,14 @@ typedef struct svm_model{
 
 }svm_model;
 
+// Holds scaling parameters for features
+typedef struct scaling_params {
+    double *mean;       // Mean of each feature
+    double *std;        // Standard deviation of each feature
+    int num_features;   // Number of features
+} scaling_params;
+
+
 
 //All the fonction declaration , later ill transport them in a header file
 double dot_product(const double *w, const svm_node *x);
@@ -687,6 +695,89 @@ void counter_points(const svm_model *model, const svm_problem *prob) {
     printf("  - Misclassified: %d\n", neg_misclassified);
 }
 
+/*
+    Scaling fonctions PART through standarization
+*/
+
+// compute:  to calculate the standard deviation and the mean of the given sample
+
+void compute_scalingParam(const svm_problem *train_prob,scaling_params *params, int num_features){
+    params->num_features = num_features;
+    params->mean = (double *)calloc(num_features,sizeof(double));
+    params->std = (double *)calloc(num_features, sizeof(double));
+
+    if(!params->mean || !params->std){
+        fprintf(stderr,"Memory allocation failed for scaling parameters");
+        exit(EXIT_FAILURE);
+    }
+    
+    // CALCULATE THE MEAN for each sample features:
+    for(int d = 0; d < num_features;d++){
+        double sum = 0.0;
+        for(int i = 0; i < train_prob->len ; i++){
+            svm_node *x = train_prob->x[i];
+            while(x->index - 1 != -1){
+                if(x->index - 1 == d){
+                    sum += x->value;
+                    break;
+                }
+                x++;
+            }
+        }
+        params->mean[d] = sum / train_prob->len; //store the mean of the feature in the array
+    }
+
+
+    /*
+        Calculate the standart deviation :
+        std = sqrt( sum(xi - mean)^2  / len(x)) 
+        xi: sample 
+        mean: the mean of all the samples
+        len(x) : number of samples
+    */ 
+
+    for(int d = 0; d < num_features ; d++){
+        double sum_sq = 0.0;
+        for(int  i = 0; i < train_prob->len; i++){
+            svm_node *x = train_prob->x[i];
+            while(x->index != -1){
+                if(x->index - 1 == d){
+                    double diff = x->value - params->mean[d]; 
+                    sum_sq += diff * diff;
+                    break;
+                }
+                x++;
+            }
+        }
+        params->std[d] = sqrt(sum_sq / train_prob->len);
+        // Handle zero std
+        if(params->std[d] == 0.0) params->std[d] = 1.0;
+    } 
+
+}
+// Applies the scaling  to the daaset based on provided scaling parameters
+void apply_scaling(svm_problem *prob , const scaling_params *params){
+    for (int i = 0;i < prob->len; i++){
+        svm_node *x = prob->x[i];
+        while(x->index != -1){
+            int d = x->index - 1; //Apply the standarization fonction to each sample
+            if(d >= 0 && d < params->num_features) x->value = (x->value - params->mean[d]) / params->std[d]; 
+            x++;
+        } 
+        
+    }
+
+}
+
+// PRINTS HE MEAN AND STD  for each feature after scaling for debugging
+// Prints the mean and standard deviation for each feature after scaling using precomputed scaling_params
+void print_scaled_stats(const svm_problem *prob, const scaling_params *params){
+    printf("\nScaled Features Statistics:\n");
+    for(int d = 0; d < params->num_features; d++){
+        printf("Feature %d - Mean: %.4f, Std: %.4f\n", d + 1, params->mean[d], params->std[d]);
+    }
+}
+
 
 
 // Main Function
@@ -704,6 +795,7 @@ int main(int argc, char *argv[])
     while(1){
         srand(42); // to fix the seed to have the same random value for every iteration.
         svm_problem full_prob = {0}, train_prob = {0}, test_prob = {0};
+        scaling_params params;      // Stores the mean and standard deviation for feature scaling
         svm_parameters param;       // Stores the paraeters of the svm model
         svm_model *model = NULL;    // Pointer to the trained SVM model, which will store the weights and bias after training
         double accuracy;            
@@ -738,11 +830,24 @@ int main(int argc, char *argv[])
         // 3) Split dataset
         split_dataset(&full_prob, &train_prob, &test_prob, 0.2);
 
+        // 4) Feature Scaling
+        compute_scalingParam(&train_prob, &params, 2); // selected_features size is 2, Calculate the mean and the std for each two features, will be stored in param
+        // Apply the scaling: each feature value will be scaled 
+        apply_scaling(&train_prob, &params);
+        apply_scaling(&test_prob, &params);
+    /*
+            // Print scaled statistics
+        printf("\nScaled Training Data Statistics:\n");
+        print_scaled_stats(&train_prob, &params);
+        printf("\nScaled Testing Data Statistics:\n");
+        print_scaled_stats(&test_prob, &params);
         // Now each feature is approximated to zero mean and unit variance.
+ 
+    */
 
         // 5) Set parameters
         param.C = 58.0;       // Regularization parameter
-        param.eps = 1e-3;    // Not used in this implementation
+        param.eps = 1e-3;    // Not usced in this implementation
         param.eta = 0.01;    // Learning rate
         param.max_iter = 1500;
 
@@ -814,7 +919,8 @@ int main(int argc, char *argv[])
         free_dataset(&full_prob, 1);      // Free x_nodes
         free_dataset(&train_prob, 0);     // Do not free x_nodes (cause train and test have the same x_nodes, and its free)
         free_dataset(&test_prob, 0);      // Do not free x_nodes
-   
+        free(params.mean);
+        free(params.std);
 
         //Remove temporary plot data files
         cleanup_temp_files();
