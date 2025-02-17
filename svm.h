@@ -382,7 +382,7 @@ svm_model *svm_train(const svm_problem *prob,const svm_parameters *param){
             */
             double margin = yi* (dot_product(model->w, xi) + model->b);
             /*
-            margin <1 violated => hingeloss subgradient
+            margin < 1 violated => hingeloss subgradient
                 w <- w + eta * C * y_i * x_i
                 b <- b + eta * C * y_i
             */

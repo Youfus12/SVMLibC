@@ -69,13 +69,11 @@ int main(int argc, char *argv[])
         print_scaled_stats(&params);
         // Now each feature is approximated to zero mean and unit variance.
  
-    
-
         // 5) Set parameters
         param.C = 58.0;       // Regularization parameter
         param.eps = 0;    // Not usced in this implementation
         param.eta = 0.01;    // Learning rate
-        param.max_iter = 1500;
+        param.max_iter = 10000000;
 
         // 6) Train model
         model = svm_train(&train_prob, &param);
